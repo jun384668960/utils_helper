@@ -19,9 +19,14 @@
 #include <unistd.h>
 
 #include "utils_log.h"
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 static char s_log_buffer[MAX_LOG_BUFSIZE] = {0};
 static log_ctrl* s_log_ctrl;
+static int s_log_level = LOG_INFO;
+
 
 log_ctrl* log_ctrl_create(char* file, int level, int wt)
 {
@@ -39,6 +44,7 @@ log_ctrl* log_ctrl_create(char* file, int level, int wt)
 	log->wt = wt;
 
 	s_log_ctrl = log;
+	s_log_level = level;
 	
 	return log;
 }
@@ -53,6 +59,7 @@ void log_ctrl_destory(log_ctrl* log)
 int  log_ctrl_level_set(log_ctrl* log, int level)
 {
 	log->level = level;
+	s_log_level = level;
 	
 	return 0;
 }
@@ -75,7 +82,7 @@ int log_ctrl_file_copy(log_ctrl* log)
     in = fopen(log->file,"r+");  
     out = fopen(bak,"w+");  
   
-    while(len = fread(buff,1,sizeof(buff),in))  
+    while((len = fread(buff,1,sizeof(buff),in)) != 0)  
     {  
         fwrite(buff,1,len,out);  
     }  
@@ -125,53 +132,73 @@ int log_ctrl_file_write(log_ctrl* log, char* data, int len)
 int  log_ctrl_print(log_ctrl* log, int level, char* t, ...)
 {
 	if(log == NULL)
-		log = s_log_ctrl;
-
-	if(log == NULL || level > log->level)
 	{
-		return -1;
-	}
+		if(level <= s_log_level)
+		{
+			struct timeval v;
+			gettimeofday(&v, 0);
+			struct tm *p = localtime(&v.tv_sec);
+			char fmt[256]; //限制t不能太大
+			sprintf(fmt, "%s%04d/%02d/%02d %02d:%02d:%02d.%03d %s %s\n"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
+					, 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, (int)(v.tv_usec/1000)
+					, level==LOG_TRACE? "TRACE":(level==LOG_DEBUG? "DEBUG":(level==LOG_INFO? "!INFO":(level==LOG_WARN? "!WARN":"ERROR"))), t);
 
-	if(log->wt == 0)
+			va_list params;
+			va_start(params, t);
+			vfprintf(stdout, fmt, params);
+			va_end(params);
+			fflush(stdout);
+		}
+		
+		return 0;
+	}
+	else if(level <= log->level)
 	{
-		
-		struct timeval v;
-		gettimeofday(&v, 0);
-		struct tm *p = localtime(&v.tv_sec);
-		char fmt[256]; //限制t不能太大
-		sprintf(fmt, "%s%04d/%02d/%02d %02d:%02d:%02d.%03d %s %s\n"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
-				, 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, (int)(v.tv_usec/1000)
-				, level==LOG_TRACE? "TRACE":(level==LOG_DEBUG? "DEBUG":(level==LOG_INFO? "!INFO":(level==LOG_WARN? "!WARN":"ERROR"))), t);
+		if(log->wt == 0)
+		{
+			
+			struct timeval v;
+			gettimeofday(&v, 0);
+			struct tm *p = localtime(&v.tv_sec);
+			char fmt[256]; //限制t不能太大
+			sprintf(fmt, "%s%04d/%02d/%02d %02d:%02d:%02d.%03d %s %s\n"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
+					, 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, (int)(v.tv_usec/1000)
+					, level==LOG_TRACE? "TRACE":(level==LOG_DEBUG? "DEBUG":(level==LOG_INFO? "!INFO":(level==LOG_WARN? "!WARN":"ERROR"))), t);
 
-		va_list params;
-		va_start(params, t);
-		vfprintf(stdout, fmt, params);
-		va_end(params);
-		fflush(stdout);
+			va_list params;
+			va_start(params, t);
+			vfprintf(stdout, fmt, params);
+			va_end(params);
+			fflush(stdout);
+		}
+		else
+		{
+			
+			struct timeval v;
+			gettimeofday(&v, 0);
+			struct tm *p = localtime(&v.tv_sec);
+			char fmt[256]; //限制t不能太大
+			sprintf(fmt, "%04d/%02d/%02d %02d:%02d:%02d.%03d %s %s\n"
+					, 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, (int)(v.tv_usec/1000)
+					, level==LOG_TRACE? "TRACE":(level==LOG_DEBUG? "DEBUG":(level==LOG_INFO? "!INFO":(level==LOG_WARN? "!WARN":"ERROR"))), t);
+
+			//这里需要上锁
+			va_list params;
+			va_start(params, t);
+			vsprintf(s_log_buffer, fmt, params);
+			va_end(params);
+
+			//log_ctrl_file_write(log, s_log_buffer, strlen(s_log_buffer));
+			
+			printf("!%s%s"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
+				, s_log_buffer);
+			fflush(stdout);
+		}
 	}
-	else
-	{
-		
-		struct timeval v;
-		gettimeofday(&v, 0);
-		struct tm *p = localtime(&v.tv_sec);
-		char fmt[256]; //限制t不能太大
-		sprintf(fmt, "%04d/%02d/%02d %02d:%02d:%02d.%03d %s %s\n"
-				, 1900 + p->tm_year, 1 + p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, (int)(v.tv_usec/1000)
-				, level==LOG_TRACE? "TRACE":(level==LOG_DEBUG? "DEBUG":(level==LOG_INFO? "!INFO":(level==LOG_WARN? "!WARN":"ERROR"))), t);
-
-		//这里需要上锁
-		va_list params;
-		va_start(params, t);
-		vsprintf(s_log_buffer, fmt, params);
-		va_end(params);
-
-		log_ctrl_file_write(log, s_log_buffer, strlen(s_log_buffer));
-		
-		printf("!%s%s"NONE,level==LOG_TRACE? "":(level==LOG_DEBUG? LIGHT_GREEN:(level==LOG_INFO? LIGHT_CYAN:(level==LOG_WARN?YELLOW:LIGHT_RED)))
-			, s_log_buffer);
-	}
-
+	
 	return 0;
 }
+#ifdef __cplusplus
+}
+#endif
 

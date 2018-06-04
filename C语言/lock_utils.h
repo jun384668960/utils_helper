@@ -1,5 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef LOCK_UTILS_H
+#define LOCK_UTILS_H
 
 #include <pthread.h> 
 #include <semaphore.h>
@@ -12,8 +12,11 @@ extern "C"{
 //–≈∫≈¡ø
 typedef void* CSem;
 CSem  csem_create(int initial_count, int maxcount);
+CSem  csem_open(char* name, int initial_count);
 int   csem_delete(CSem handle);
-int   csem_wait(CSem handle, unsigned int timeout/*∫¡√Î*/);
+int   csem_close(CSem handle);
+int   csem_wait(CSem handle);
+int   csem_wait_timeout(void* handle, unsigned int timeout/*∫¡√Î*/);
 int   csem_post(CSem handle);
 int   csem_getcount(CSem handle, int *count);
 

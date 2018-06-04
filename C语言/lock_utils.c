@@ -1,6 +1,7 @@
-#include "common.h"
+#include "lock_utils.h"
 #include <errno.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -13,12 +14,26 @@ CSem csem_create(int initial_count, int max_count)
 	return sem;
 }
 
+CSem csem_open(char* name, int initial_count)
+{
+	sem_t* sem = sem_open(name, O_CREAT, 0X666, 1);
+	sem_unlink(name);
+	return sem;
+}
+
 int csem_delete(void* handle)
 {
 //	assert( NULL != handle);
 	sem_destroy((sem_t*)handle);
 	free(handle);
-	return (0);
+	return 0;
+}
+
+int csem_close(void* handle)
+{
+//	assert( NULL != handle);
+	sem_close((sem_t*)handle);
+	return 0;
 }
 
 int csem_getcount(void* handle, int *count)
@@ -34,7 +49,7 @@ int csem_post(void* handle)
     return sem_post((sem_t*)handle);
 }
 
-int csem_wait(void* handle, unsigned int timeout)
+int csem_wait_timeout(void* handle, unsigned int timeout)
 {
 //	assert( NULL != handle);
 	struct timespec abstime;
@@ -51,6 +66,12 @@ int csem_wait(void* handle, unsigned int timeout)
 	if( errno != EINTR ) break;
 	}while(1);
 	return -1;
+}
+
+int csem_wait(void* handle)
+{
+//	assert( NULL != handle);
+	return sem_wait((sem_t*)handle);
 }
 
 
