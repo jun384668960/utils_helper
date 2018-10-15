@@ -18,10 +18,12 @@ void cmap_init(cmap *p)
 	p->front->key.i_key = 0xffffffff;
 	memset(p->front->key.p_key, 0, 64);
 	(p->front)->next = null;
-
+	p->lock = cmtx_create();
 }
+
 void cmap_clear(cmap *q)
 {
+	cmtx_enter(q->lock);
 	while (cmap_is_empty(q) != 1)
 	{
 		q->rear = q->front->next;
@@ -38,9 +40,12 @@ void cmap_clear(cmap *q)
 	q->front->key.i_key = 0xffffffff;
 	memset(q->front->key.p_key, 0, 64);
 	q->size = 0;
+	cmtx_leave(q->lock);
 }
+
 status cmap_destory(cmap *q)
 {
+	cmtx_enter(q->lock);
 	while (q->front)
 	{
 		q->rear = q->front->next;
@@ -50,9 +55,12 @@ status cmap_destory(cmap *q)
 		q->front = q->rear;
 	}
 	q->size = 0;
-
+	cmtx_leave(q->lock);
+	
+	cmtx_delete(q->lock);
 	return 0;
 }
+
 status cmap_is_empty(cmap *q)
 {
 	int v;
@@ -66,15 +74,20 @@ status cmap_is_empty(cmap *q)
 status cmap_ikey_insert(cmap *q, int key, elem e)
 {
 	if(cmap_ikey_find(q, key) != null) return -2;
-		
+
+	cmtx_enter(q->lock);
 	q->rear->next = (cmapnode *)malloc(sizeof(cmapnode));
 	q->rear = q->rear->next;
 	if (!q->rear) 
+	{
+		cmtx_leave(q->lock);
 		return -1;
+	}
 	q->rear->data = e;
 	q->rear->key.i_key = key;
 	q->rear->next = null;
 	q->size += 1;
+	cmtx_leave(q->lock);
 
 	return 0;
 }
@@ -82,6 +95,7 @@ status cmap_ikey_insert(cmap *q, int key, elem e)
 elem cmap_ikey_find(cmap *q, int key)
 {
 	elem v = null;
+	cmtx_enter(q->lock);
 	cmapnode* p = q->front->next;
 	while (p)
 	{	
@@ -92,12 +106,14 @@ elem cmap_ikey_find(cmap *q, int key)
 		}
 		p = p->next;
 	}
+	cmtx_leave(q->lock);
 
 	return v;
 }
 
 status cmap_ikey_erase(cmap *q, int key)
 {
+	cmtx_enter(q->lock);
 	cmapnode* t = q->front;
 	cmapnode* p = q->front->next;
 	while (p)
@@ -113,11 +129,13 @@ status cmap_ikey_erase(cmap *q, int key)
 			free(p);
 
 			q->size -= 1;
+			cmtx_leave(q->lock);
 			return 0;
 		}
 		t = p;
 		p = p->next;
 	}
+	cmtx_leave(q->lock);
 
 	return -1;
 }
@@ -201,6 +219,7 @@ cmapnode* cmap_index_get(cmap *q, int index)
 {
 	cmapnode* v = null;
 	int idx = 0;
+	cmtx_enter(q->lock);
 	cmapnode* p = q->front->next;
 	while (p)
 	{	
@@ -212,6 +231,7 @@ cmapnode* cmap_index_get(cmap *q, int index)
 		p = p->next;
 		idx++;
 	}
+	cmtx_leave(q->lock);
 
 	return v;
 }
