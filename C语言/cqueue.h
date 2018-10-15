@@ -1,5 +1,6 @@
 #ifndef C_QUEUE_H
 #define C_QUEUE_H
+#include "lock_utils.h"
 
 #define null 0 
 
@@ -15,6 +16,7 @@ typedef struct
 	cqueuenode *front;
 	cqueuenode *rear;
 	int size;
+	CMtx lock;
 }cqueue;
 
 #ifdef __cplusplus
